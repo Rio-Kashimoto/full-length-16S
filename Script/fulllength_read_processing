@@ -25,8 +25,7 @@ cutadapt \
   -o cutadaptout_${file}.fastq.gz \
   ${file}.fastq.gz
 
-  #R processing
-
+  #R processing followed https://github.com/pattonsunni/full-length_16S/
   ## Set seed ====
 set.seed(123)
 
