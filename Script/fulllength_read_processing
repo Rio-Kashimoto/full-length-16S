@@ -1,0 +1,153 @@
+#Author Rio Kashimoto
+#PacBio Revio sequencing system (full length 16S), HiFi reads
+#Date: May 9th, 2026
+
+#Run filtering by HPC cluster
+#Cutadapt
+#!/bin/bash
+#SBATCH -J'Cutadapt'
+#SBATCH -p batch
+#SBATCH --time=0-04:00:00
+#SBATCH --nodes=1 
+#SBATCH --ntasks=1
+#SBATCH --mail-user=riokashimoto@ucsb.edu
+#SBATCH --mail-type ALL
+#SBATCH --array=1
+list='list11'
+
+i=$SLURM_ARRAY_TASK_ID
+file=$(sed -n "${i}p" ${list})
+
+cutadapt \
+  -g GTAGRGTTYGATYMTGGCTCAG \
+  -a GYTACCTTGTTACGACTT \
+  --revcomp \
+  -o cutadaptout_${file}.fastq.gz \
+  ${file}.fastq.gz
+
+  #R processing
+
+  ## Set seed ====
+set.seed(123)
+
+## Load libraries ====
+library(dada2)
+library(dplyr) # REQUIRED for the custom loessErrfun_mod4 function
+
+## 1. Create path to files ====
+path_cutadapt <- "filteredread_by_cutadapt_path"
+fns <- sort(list.files(path_cutadapt, pattern = "fastq", full.names = TRUE))
+
+# Extract sample names, assuming files are named "samplename.fastq" or similar
+sample.names <- sapply(strsplit(basename(fns), "\\.fastq"), `[`, 1)
+
+## 2. Filter sequences ====
+filt_path <- file.path(path_cutadapt, "filtered")
+if(!file.exists(filt_path)) dir.create(filt_path)
+
+filts <- file.path(filt_path, basename(fns))
+
+track <- filterAndTrim(fns, filts, 
+                       minQ = 3, 
+                       minLen = 1000, 
+                       maxLen = 1600, 
+                       maxN = 0, 
+                       rm.phix = FALSE, 
+                       maxEE = 2, 
+                       multithread = TRUE,
+                       verbose = TRUE)
+
+## 3. Dereplicate reads ====
+# Using 'filts' to match the output of filterAndTrim
+derep <- derepFastq(filts)
+names(derep) <- sample.names # Ensures your sequence table will have sample names
+
+## 4. Edits to learning errors (from github) ====
+loessErrfun_mod4 <- function(trans) {
+  qq <- as.numeric(colnames(trans))
+  est <- matrix(0, nrow=0, ncol=length(qq))
+  for(nti in c("A","C","G","T")) {
+    for(ntj in c("A","C","G","T")) {
+      if(nti != ntj) {
+        errs <- trans[paste0(nti,"2",ntj),]
+        tot <- colSums(trans[paste0(nti,"2",c("A","C","G","T")),])
+        rlogp <- log10((errs+1)/tot)  
+        rlogp[is.infinite(rlogp)] <- NA
+        df <- data.frame(q=qq, errs=errs, tot=tot, rlogp=rlogp)
+        
+        mod.lo <- loess(rlogp ~ q, df, weights = log10(tot), degree = 1, span = 0.95)
+        
+        pred <- predict(mod.lo, qq)
+        maxrli <- max(which(!is.na(pred)))
+        minrli <- min(which(!is.na(pred)))
+        pred[seq_along(pred)>maxrli] <- pred[[maxrli]]
+        pred[seq_along(pred)<minrli] <- pred[[minrli]]
+        est <- rbind(est, 10^pred)
+      } 
+    } 
+  } 
+  
+  # HACKY bounds
+  MAX_ERROR_RATE <- 0.25
+  MIN_ERROR_RATE <- 1e-7
+  est[est>MAX_ERROR_RATE] <- MAX_ERROR_RATE
+  est[est<MIN_ERROR_RATE] <- MIN_ERROR_RATE
+  
+  # enforce monotonicity
+  estorig <- est
+  est <- est %>%
+    data.frame() %>%
+    mutate_all(funs(case_when(. < X40 ~ X40,
+                              . >= X40 ~ .))) %>% as.matrix()
+  rownames(est) <- rownames(estorig)
+  colnames(est) <- colnames(estorig)
+  
+  # Expand the err matrix with the self-transition probs
+  err <- rbind(1-colSums(est[1:3,]), est[1:3,],
+               est[4,], 1-colSums(est[4:6,]), est[5:6,],
+               est[7:8,], 1-colSums(est[7:9,]), est[9,],
+               est[10:12,], 1-colSums(est[10:12,]))
+  rownames(err) <- paste0(rep(c("A","C","G","T"), each=4), "2", c("A","C","G","T"))
+  colnames(err) <- colnames(trans)
+  return(err)
+}
+
+## 5. Learn errors ====
+errF_4 <- learnErrors(derep,
+                      multithread = TRUE,
+                      nbases = 1e10,
+                      errorEstimationFunction = loessErrfun_mod4,
+                      verbose = TRUE)
+
+## 6. Denoise ====
+denoise <- dada(derep, err=errF_4, BAND_SIZE=32, multithread=TRUE)
+
+## 7. Make sequence table ====
+seq_table <- makeSequenceTable(denoise) 
+
+### Keep contigs within desired biological size range (widened for full-length 16S)
+seq_table <- seq_table[, nchar(colnames(seq_table)) %in% 1400:1600]
+
+### Remove chimeras
+seq_table_nochim <- removeBimeraDenovo(seq_table, method="consensus", multithread=TRUE, verbose=TRUE)
+
+## 8. Assign taxonomy ====
+# NOTE: Ensure these .fa files are in your current working directory, 
+# or provide the full /home/riokashimoto/... path to them.
+tax_gg <- assignTaxonomy(seq_table_nochim, "gg2_2024_09_toGenus_trainset.fa", multithread=TRUE) 
+tax_silv <- assignTaxonomy(seq_table_nochim, "silva_nr99_v138.1_train_set.fa.gz", multithread=TRUE) 
+tax_gtdb <- assignTaxonomy(seq_table_nochim, "GTDB_bac120_arc122_ssu_r202_Genus.fa", multithread=TRUE) 
+tax_rdp <- assignTaxonomy(seq_table_nochim, "rdp_19_toGenus_trainset.fa", multithread=TRUE) 
+tax_refseq <- assignTaxonomy(seq_table_nochim, "RefSeq_16S_6-11-20_RDPv16_fullTaxo.fa", multithread=TRUE) 
+
+## 9. Save Outputs ====
+# Creating the output directory if it doesn't exist
+out_dir <- "/home/riokashimoto/data/fulllength16S/Prus_Project/Output/01_Read_Preprocessing"
+if(!file.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+saveRDS(seq_table_nochim, file.path(out_dir, "seq_table_nochim.rds"))
+saveRDS(tax_gg, file.path(out_dir, "tax_gg.rds"))
+saveRDS(tax_silv, file.path(out_dir, "tax_silv.rds"))
+saveRDS(tax_gtdb, file.path(out_dir, "tax_gtdb.rds"))
+saveRDS(tax_rdp, file.path(out_dir, "tax_rdp.rds"))
+saveRDS(tax_refseq, file.path(out_dir, "tax_refseq.rds"))
