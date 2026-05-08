@@ -109,6 +109,26 @@ saveRDS(seq_table_nochim, file.path(out_dir, "seq_table_nochim_final.rds"))
 cat("Pipeline complete!\n")
 :wq
 
+# Write dada_run script to run the dada2_pipeline.R script on HPC cluster
+#!/bin/bash
+#SBATCH -J DADA2_PacBio
+#SBATCH -p batch
+#SBATCH --time=1-00:00:00        # Gave it 24 hours just to be safe
+#SBATCH --nodes=1 
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16       # Gives DADA2 16 cores for multithreading
+#SBATCH --mem=64G                # DADA2 holds a lot in RAM, 64GB is safe for 100 samples
+#SBATCH --mail-user=riokashimoto@ucsb.edu
+#SBATCH --mail-type=ALL
+
+# Load your R module (This depends on your cluster, uncomment if needed)
+# module load R/4.2.0  
+
+# Run the R script
+echo "Starting DADA2 Pipeline..."
+Rscript dada2_pipeline.R
+echo "Finished!"
+
 #Run dada_run script on HPC cluster
 #Activate the environment
 $ conda activate coral_env
