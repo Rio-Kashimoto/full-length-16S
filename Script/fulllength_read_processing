@@ -36,7 +36,7 @@ library(dada2)
 library(dplyr)
 
 # 2. Point to your ALREADY FILTERED files
-filt_path <- "/home/riokashimoto/data/fulllength16S/Prus_Project/cutadapt_trim/filtered"
+filt_path <- "/path/filtered"
 filts <- sort(list.files(filt_path, full.names = TRUE))
 sample.names <- sapply(strsplit(basename(filts), "_filtered"), `[`, 1) # Adjust if your naming is different
 
@@ -101,7 +101,7 @@ seq_table <- seq_table[, nchar(colnames(seq_table)) %in% 1400:1600]
 seq_table_nochim <- removeBimeraDenovo(seq_table, method="consensus", multithread=TRUE, verbose=TRUE)
 
 # 8. Save output
-out_dir <- "/home/riokashimoto/data/fulllength16S/Prus_Project/Output/01_Read_Preprocessing"
+out_dir <- "/path/Output/01_Read_Preprocessing"
 if(!file.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
 cat("Saving RDS file...\n")
