@@ -117,7 +117,7 @@ cat("Pipeline complete!\n")
 #SBATCH --nodes=1 
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32       # Gives DADA2 32 cores for multithreading
-#SBATCH --mem=128GG                # DADA2 holds a lot in RAM, 128GGB is safe for 100 samples
+#SBATCH --mem=128G                # DADA2 holds a lot in RAM, 128GGB is safe for 100 samples
 #SBATCH --mail-user=email
 #SBATCH --mail-type=ALL
 
