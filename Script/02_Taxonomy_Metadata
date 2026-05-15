@@ -41,13 +41,14 @@ cat("Taxonomy and Metadata complete!\n")
 :wq
 
 vi taxmeta_run
+#!/bin/bash
 #SBATCH -J dada2_tax
 #SBATCH -p batch
 #SBATCH --time=2-00:00:00        
 #SBATCH --nodes=1 
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32       
-#SBATCH --mem=128GG             
+#SBATCH --mem=128G            
 #SBATCH --mail-user=email
 #SBATCH --mail-type=ALL
 
