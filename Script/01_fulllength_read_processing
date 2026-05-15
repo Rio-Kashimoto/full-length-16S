@@ -118,11 +118,8 @@ cat("Pipeline complete!\n")
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32       # Gives DADA2 32 cores for multithreading
 #SBATCH --mem=128GG                # DADA2 holds a lot in RAM, 128GGB is safe for 100 samples
-#SBATCH --mail-user=riokashimoto@ucsb.edu
+#SBATCH --mail-user=email
 #SBATCH --mail-type=ALL
-
-# Load your R module (This depends on your cluster, uncomment if needed)
-# module load R/4.2.0  
 
 # Run the R script
 echo "Starting DADA2 Pipeline..."
