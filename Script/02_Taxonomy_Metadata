@@ -1,0 +1,62 @@
+#Author Rio Kashimoto
+#PacBio Revio sequencing system (full length 16S), HiFi reads
+#Date: May 15th, 2026
+
+
+vi taxonomy_and_meta.R
+
+library(dada2)
+library(dplyr)
+
+# 1. Load the results from your previous 14-hour run
+asv_path <- "/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/01_Read_Preprocessing/seq_table_nochim_final3.rds"
+seq_table_nochim <- readRDS(asv_path)
+
+# 2. Assign Taxonomy (The heavy lifting)
+cat("Starting Taxonomy Assignment...\n")
+# Ensure the .fa file is in your working directory or provide the full path
+tax_gg <- assignTaxonomy(seq_table_nochim, "gg2_2024_09_toGenus_trainset.fa", multithread=TRUE)
+
+# 3. Create Metadata
+cat("Creating Metadata...\n")
+sample.names <- rownames(seq_table_nochim)
+sample_df <- data.frame(Samples = sample.names)
+
+# --- Insert your specific naming logic here ---
+# Example based on your previous script:
+sample_df$Time <- as.character(sapply(strsplit(sample_df$Samples, "_T"), `[`, 2))
+sample_df$Time <- as.character(sapply(strsplit(sample_df$Time, "_"), `[`, 1))
+# ... (Add the rest of your Treatment/Antibiotic logic) ...
+
+# 4. Save Everything
+out_dir <- "/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/Final_Phyloseq_Ready"
+if(!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+saveRDS(tax_gg, file.path(out_dir, "tax_gg.rds"))
+saveRDS(sample_df, file.path(out_dir, "sample_df.rds"))
+# Also save a copy of the ASV table here so all 3 files are in one place
+saveRDS(seq_table_nochim, file.path(out_dir, "seq_table_nochim.rds"))
+
+cat("Taxonomy and Metadata complete!\n")
+:wq
+
+vi taxmeta_run
+#SBATCH -J dada2_tax
+#SBATCH -p batch
+#SBATCH --time=2-00:00:00        
+#SBATCH --nodes=1 
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32       
+#SBATCH --mem=128GG             
+#SBATCH --mail-user=email
+#SBATCH --mail-type=ALL
+
+# Run the R script
+echo "Starting DADA2 Pipeline..."
+Rscript taxonomy_and_meta.R
+echo "Finished!"
+
+#Run taxmeta_run script on HPC cluster
+#Activate the environment
+$ conda activate coral_env
+$ sbatch taxmeta_run
