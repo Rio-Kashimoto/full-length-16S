@@ -68,8 +68,8 @@ library(dplyr)
 library(phyloseq)
 
 ## 1. Load data ====
-seq_table_nochim <- readRDS("/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/Final_Phyloseq_Ready/seq_table_nochim.rds")
-sample_df        <- readRDS("/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/Final_Phyloseq_Ready/sample_df.rds")
+seq_table_nochim <- readRDS("/fullpath/seq_table_nochim.rds")
+sample_df        <- readRDS("/fullpath/sample_df.rds")
 
 ## 2. Force match row names to prevent phyloseq errors ====
 # Assuming 'Samples' is the column name holding your sample IDs
@@ -79,6 +79,29 @@ rownames(seq_table_nochim) <- sample_df$Samples
 ## 3. Assign Taxonomy (The heavy lifting) ====
 tax_silv <- assignTaxonomy(
   seq_table_nochim, 
-  "/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/silva_nr99_v138.1_train_set.fa.gz", 
+  "/fullpath/silva_nr99_v138.1_train_set.fa.gz", 
   multithread = TRUE
 )
+
+vi taxsilv_run
+#!/bin/bash
+#SBATCH --job-name=taxsilv
+#SBATCH --time=1-00:00:00          
+#SBATCH --cpus-per-task=16        
+#SBATCH --mem=64G
+#SBATCH --mail-user=email
+#SBATCH --mail-type=ALL
+#SBATCH -p batch
+#SBATCH --nodes=1 
+#SBATCH --ntasks=1
+
+# Run the R script
+echo "Starting DADA2 Pipeline..."
+Rscript tax_silv.R
+echo "Finished!"
+
+#Run taxsilv_run script on HPC cluster
+#Activate the environment
+$ conda activate coral_env
+$ sbatch taxsilv_run
+
