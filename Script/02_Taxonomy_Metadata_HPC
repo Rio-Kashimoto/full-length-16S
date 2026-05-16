@@ -2,7 +2,7 @@
 #PacBio Revio sequencing system (full length 16S), HiFi reads
 #Date: May 15th, 2026
 
-
+####Greengenes2 (tax_gg) database
 vi taxonomy_and_meta.R
 
 library(dada2)
@@ -61,3 +61,24 @@ echo "Finished!"
 #Activate the environment
 $ conda activate coral_env
 $ sbatch taxmeta_run
+
+###Silva (ps.All_silv) for the main relative abundance plot
+library(dada2)
+library(dplyr)
+library(phyloseq)
+
+## 1. Load data ====
+seq_table_nochim <- readRDS("/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/Final_Phyloseq_Ready/seq_table_nochim.rds")
+sample_df        <- readRDS("/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/Final_Phyloseq_Ready/sample_df.rds")
+
+## 2. Force match row names to prevent phyloseq errors ====
+# Assuming 'Samples' is the column name holding your sample IDs
+rownames(sample_df) <- sample_df$Samples 
+rownames(seq_table_nochim) <- sample_df$Samples 
+
+## 3. Assign Taxonomy (The heavy lifting) ====
+tax_silv <- assignTaxonomy(
+  seq_table_nochim, 
+  "/home/riokashimoto/data/fulllength16S/Prus_Project/Output3/silva_nr99_v138.1_train_set.fa.gz", 
+  multithread = TRUE
+)
